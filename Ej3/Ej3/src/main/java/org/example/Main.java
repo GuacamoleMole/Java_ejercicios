@@ -6,17 +6,16 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public class Main {
 
-    private static final int NUM_OPERATIONS = 200000;
+    private static final int NUM_OPERATIONS = 10;
     private static final int NUM_OPTIONS = 3;
     private static final double DEPOSIT_AMOUNT = 100;
     private static final double WITHDRAW_AMOUNT = 250;
     private static final double TRANSFER_AMOUNT = 10;
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
         System.out.println("=== SISTEMA BANCARIO CONCURRENTE ===\n");
 
         BankAccount[] accounts = {
@@ -30,11 +29,12 @@ public class Main {
 
         List<CompletableFuture<Void>> operations = new ArrayList<>();
         Random random = new Random();
-        int numCores = Runtime.getRuntime().availableProcessors() * 2;
 
-        try (ExecutorService executor = Executors.newFixedThreadPool(numCores)) {
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+
             for (int i = 0; i < NUM_OPERATIONS; i++) {
                 final int opNum = i + 1;
+
                 CompletableFuture<Void> operation = CompletableFuture.runAsync(() -> {
                     try {
                         performRandomOperation(opNum, accounts, random);
@@ -50,9 +50,6 @@ public class Main {
 
             System.out.println("\nEsperando que terminen todas las operaciones...\n");
             CompletableFuture.allOf(operations.toArray(new CompletableFuture[0])).join();
-
-            executor.shutdown();
-            executor.awaitTermination(10, TimeUnit.SECONDS);
 
             System.out.println("\n=== OPERACIONES COMPLETADAS ===");
             System.out.println("Saldos finales:");

@@ -1,53 +1,55 @@
 package org.example;
 
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class BankAccount {
 
-    private final AtomicReference<Double> balance;
+    private double totalBalance;
     private final String idAccount;
     private final Lock lock = new ReentrantLock();
 
     public BankAccount(String idAccount, double initialBalance) {
         this.idAccount = idAccount;
-        this.balance = new AtomicReference<>(initialBalance);
+        this.totalBalance = initialBalance;
     }
 
     public void deposit(double amount) {
         if (amount <= 0) {
             throw new IllegalArgumentException("El monto debe ser positivo");
         }
-        balance.updateAndGet(current -> current + amount);
+
+        lock.lock();
+        try {
+            totalBalance += amount;
+        } finally {
+            lock.unlock();
+        }
     }
 
     public boolean withdraw(double amount) {
         if (amount <= 0) {
             throw new IllegalArgumentException("El monto debe ser positivo");
         }
-        Double oldValue;
-        Double newValue;
-        do {
-            oldValue = balance.get();
-            if (oldValue < amount) {
+
+        lock.lock();
+        try {
+            if (totalBalance < amount) {
                 return false;
             }
-            newValue = oldValue - amount;
-        } while (!balance.compareAndSet(oldValue, newValue));
-
-        return true;
+            totalBalance -= amount;
+            return true;
+        } finally {
+            lock.unlock();
+        }
     }
 
     public boolean transferTo(BankAccount destination, double amount) {
-        if (destination == null || amount <= 0) {
-            throw new IllegalArgumentException("Destino inválido o monto no positivo");
+        if (destination == null || destination == this) {
+            throw new IllegalArgumentException("Cuenta destino no puede ser null o la propia cuenta");
         }
-        if (this == destination) {
+        if (amount <= 0) {
             throw new IllegalArgumentException("El monto debe ser positivo");
-        }
-        if (this.getBalance() < amount) {
-            return false;
         }
 
         BankAccount first = System.identityHashCode(this) <
@@ -58,13 +60,12 @@ public class BankAccount {
         try {
             second.lock.lock();
             try {
-                Double sourceBalance = this.balance.get();
-                if (sourceBalance < amount) {
+                if (this.totalBalance < amount) {
                     return false;
                 }
 
-                this.balance.updateAndGet(current -> current - amount);
-                destination.balance.updateAndGet(current -> current + amount);
+                this.totalBalance -= amount;
+                destination.totalBalance += amount;
                 return true;
 
             } finally {
@@ -77,11 +78,10 @@ public class BankAccount {
 
 
     public double getBalance() {
-        return balance.get();
+        return totalBalance;
     }
 
     public String getIdAccount() {
         return idAccount;
     }
-
 }
